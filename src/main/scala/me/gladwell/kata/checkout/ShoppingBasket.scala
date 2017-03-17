@@ -1,31 +1,33 @@
 package me.gladwell.kata.checkout
 
-class ShoppingBasket(offer: Offer) {
+import scala.annotation.tailrec
 
-  private implicit class AllSeq[T](seq: Seq[T]) {
+class ShoppingBasket(offers: Offer*) {
 
-    def containsAll(elems: T*): Boolean =
-      elems
-        .map(seq.contains(_))
-        .foldLeft(true)(_ && _)
+  @tailrec
+  private def countOffers(offer: Offer, sublist: Seq[ShoppingItem], count: Int): Int = {
+    val index = sublist.indexOfSlice(offer.products)
 
-    def removeFirst(elem: T): Seq[T] = {
-      val index = seq.indexOf(elem)
-      seq.take(index + 1) ++ seq.drop(index + 1)
-    }
-
-    def removeAll(elems: T*): Seq[T] = elems match {
-      case elem :: tail => seq.removeFirst(elem) ++ removeAll(tail:_*)
-      case Nil          => seq
-    }
-
+    if(index == -1) count
+    else countOffers(offer, sublist.slice(index + offer.products.size, sublist.size), count + 1)
   }
 
-  private def applyOffers(items: Seq[ShoppingItem]): Seq[ShoppingItem] = {
-    items
+  def applyOffers(items: Seq[ShoppingItem]): Seq[ShoppingItem] = {
+    val discounts =
+      for {
+        offer <- offers
+      } yield {
+        val discounts = countOffers(offer, items, 0)
+        val discount = ShoppingItem(offer.sku, -offer.discount)
+        Seq.fill(discounts)(discount)
+      }
+
+    items ++ discounts.flatten
   }
 
-  def checkout(items: ShoppingItem*): Double =
-    applyOffers(items).map(_.price).sum
+  def checkout(items: ShoppingItem*): BigDecimal = {
+    val discountedItems = applyOffers(items.sortBy(_.sku))
+    discountedItems.map(_.price).sum
+  }
 
 }
